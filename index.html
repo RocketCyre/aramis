@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Арамис</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: Georgia, serif;
+    background: #1a1410;
+    color: #e8dcc0;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  #game {
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: #2a1f15;
+  }
+
+  #stats {
+    background: rgba(20, 12, 6, 0.85);
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    border-bottom: 2px solid #5a3f1a;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .stat-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .stat-label { color: #d4a840; min-width: 80px; font-weight: bold; }
+  .stat-bar {
+    flex: 1; height: 10px; background: #2a1a0a;
+    border-radius: 5px; overflow: hidden; border: 1px solid #5a3f1a;
+  }
+  .stat-fill { height: 100%; transition: width 0.5s; border-radius: 5px; }
+  .fill-food   { background: linear-gradient(90deg, #b8741a, #e8a840); }
+  .fill-energy { background: linear-gradient(90deg, #2a6a8a, #50b0d0); }
+  .fill-mood   { background: linear-gradient(90deg, #8a2a4a, #d06080); }
+  .stat-value { color: #b8a878; min-width: 32px; text-align: right; font-size: 11px; }
+
+  #room {
+    flex: 1;
+    position: relative;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  #walkzone {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 75%;
+  }
+
+  #aramis {
+    position: absolute;
+    bottom: 0;
+    height: 37%;
+    max-height: 210px;
+    object-fit: contain;
+    transition: left 0.3s linear, bottom 0.3s linear;
+    transform-origin: center bottom;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
+    pointer-events: auto;
+    cursor: grab;
+    z-index: 4;
+  }
+
+  #aramis.dragging {
+    transition: none;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.8));
+    cursor: grabbing;
+  }
+
+  #table {
+    position: absolute;
+    bottom: 0%;
+    left: 3%;
+    width: 70%;
+    max-width: 380px;
+    object-fit: contain;
+    z-index: 3;
+    pointer-events: none;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+  }
+
+  #table.kitchen {
+    bottom: -12%;
+  }
+
+  /* Метла — крупная */
+  #broom {
+    position: absolute;
+    top: 25%;
+    right: 5%;
+    width: 38%;
+    max-width: 220px;
+    object-fit: contain;
+    z-index: 20;
+    cursor: pointer;
+    pointer-events: auto;
+    display: none;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+  }
+  #broom.visible { display: block; }
+
+  #bubble {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 12, 6, 0.9);
+    border: 2px solid #8a6a30;
+    color: #f0c860;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 5;
+  }
+  #bubble.show { opacity: 1; }
+
+  #fade {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    z-index: 100;
+  }
+  #fade.on {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #bottom {
+    background: rgba(20, 12, 6, 0.95);
+    border-top: 2px solid #5a3f1a;
+    padding: 8px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  #rooms { display: flex; gap: 6px; justify-content: center; }
+  .room-btn {
+    background: #35230E;
+    border: 2px solid #5a3f1a;
+    color: #b8a878;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: Georgia, serif;
+  }
+  .room-btn.active {
+    background: #6a4a1a;
+    color: #f0c860;
+    border-color: #d4a840;
+  }
+
+  #table-actions {
+    display: none;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 4px;
+  }
+  #table-actions.visible { display: flex; }
+  .table-action {
+    background: #4a3a1a;
+    border: 2px solid #d4a840;
+    color: #f0c860;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: Georgia, serif;
+    font-weight: bold;
+  }
+  .table-action:active { background: #d4a840; color: #1a1410; }
+
+  #reset-btn {
+    background: #4a1a1a;
+    border: 2px solid #8a3030;
+    color: #d0a0a0;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-family: Georgia, serif;
+    align-self: center;
+    margin-top: 4px;
+  }
+  #reset-btn:active { background: #6a2a2a; }
+</style>
+</head>
+<body>
+  <div id="game">
+    <div id="stats">
+      <div class="stat-row">
+        <span class="stat-label">Сытость</span>
+        <div class="stat-bar"><div class="stat-fill fill-food" id="bar-food"></div></div>
+        <span class="stat-value" id="val-food">100</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Энергия</span>
+        <div class="stat-bar"><div class="stat-fill fill-energy" id="bar-energy"></div></div>
+        <span class="stat-value" id="val-energy">100</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Настроение</span>
+        <div class="stat-bar"><div class="stat-fill fill-mood" id="bar-mood"></div></div>
+        <span class="stat-value" id="val-mood">100</span>
+      </div>
+    </div>
+
+    <div id="room">
+      <img id="broom" src="" alt="">
+      <div id="walkzone">
+        <img id="table" src="" alt="">
+        <img id="aramis" src="" alt="">
+        <div id="bubble"></div>
+      </div>
+    </div>
+
+    <div id="bottom">
+      <div id="rooms">
+        <button class="room-btn active" data-room="cell">Келья</button>
+        <button class="room-btn" data-room="kitchen">Кухня</button>
+      </div>
+      <div id="table-actions">
+        <button class="table-action" id="eat-btn">Поесть</button>
+        <button class="table-action" id="drink-btn">Выпить</button>
+      </div>
+      <button id="reset-btn">Начать заново</button>
+    </div>
+  </div>
+
+  <div id="fade"></div>
+
+<script>
+// ================= СОСТОЯНИЕ =================
+var DEFAULT_STATE = {
+  food: 100,
+  energy: 100,
+  mood: 100,
+  x: 55,
+  y: 45,
+  room: "cell",
+  roomChangeId: 0,
+  currentAction: "idle",
+  lastAction: "",
+  walkStreak: 0,
+  idleStreak: 0,
+  isWalking: false,
+  isDragging: false,
+  annoyedUntil: 0,
+  lastAnnoyedAt: 0,
+  idleSince: 0,
+  actionUntil: 0,
+  isSleeping: false,
+  isAtTable: false,
+  isSweeping: false,
+  sleepUntil: 0,
+  taps: [],
+  lastSaved: 0
+};
+
+var state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+// ================= РЕСУРСЫ =================
+var roomBackgrounds = {
+  cell:    "https://i.postimg.cc/j2FRPpLr/IMG-20261012-232012-909.jpg",
+  kitchen: "https://i.postimg.cc/BnnVV2mx/IMG-20261013-121130-485.jpg"
+};
+
+var roomTables = {
+  cell:    "https://i.postimg.cc/MKFrjCpb/Bez-nazvania122-20261013111823.png",
+  kitchen: "https://i.postimg.cc/rwqd4Nq3/Bez-nazvania122-20261013134144.png"
+};
+
+var broomImg = "https://i.postimg.cc/P5BF5Jbf/Bez-nazvania122-20261013141136.png";
+
+var sprites = {
+  idle:   { img: "https://i.postimg.cc/J0WNmF1W/1000117123-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  walkL:  { img: "https://i.postimg.cc/mZwztkj5/1000117095-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  walkR:  { img: "https://i.postimg.cc/ZKsWxQ1y/1000117096-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  pray:   { img: "https://i.postimg.cc/PJhw084r/1000117091-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  read:   { img: "https://i.postimg.cc/9Q4JW6xc/1000117200-no-bg-preview-(carve-photos).png", scale: 1.20 },
+  lute:   { img: "https://i.postimg.cc/tgxnTzvP/1000117094-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  window: { img: "https://i.postimg.cc/Kcn0Y16j/Bez-nazvania122-20261013113033.png", scale: 0.95 },
+  sad:    { img: "https://i.postimg.cc/1XC3MgYP/1000117121-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  angry:  { img: "https://i.postimg.cc/yN4YfCnH/24d9129c-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  happy:  { img: "https://i.postimg.cc/D0nSxJQB/1000117150-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  drag:   { img: "https://i.postimg.cc/x1MS1xV2/1000117152-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  sleep:  { img: "https://i.postimg.cc/Mp3x4Mw9/1000117154-no-bg-preview-(carve-photos).png", scale: 0.95 },
+  eat:    { img: "https://i.postimg.cc/HkNBvRcj/Bez-nazvania122-20261013122805.png", scale: 1.15 },
+  drink:  { img: "https://i.postimg.cc/KjmNgyVt/Bez-nazvania122-20261013123143.png", scale: 1.15 },
+  sweepL: { img: "https://i.postimg.cc/kGKgLByP/Bez-nazvania122-20261013140631.png", scale: 1.1 },
+  sweepR: { img: "https://i.postimg.cc/nLKfDg1q/Bez-nazvania122-20261013142150.png", scale: 1.1 }
+};
+
+var cellSpots = {
+  pray:   { x: 78, y: 95 },
+  read:   { x: 48, y: 25 },
+  window: { x: 22, y: 92 }
+};
+
+var kitchenSpots = {
+  window: { x: 40, y: 92 }
+};
+
+var kitchenTableSpot = { x: 45, y: 20 };
+// Точка сна в келье
+var sleepSpot = { x: 50, y: 30 };
+
+var blockers = {
+  cell:    { xMin: 0, xMax: 45, yMin: 0, yMax: 30 },
+  kitchen: { xMin: 0, xMax: 45, yMin: 0, yMax: 30 }
+};
+
+var TABLE_Z_THRESHOLD = 25;
+
+var zones = {
+  cell: {
+    table:  { xMin: 0, xMax: 55, yMin: 0, yMax: 70 },
+    cross:  { xMin: 62, xMax: 95, yMin: 75, yMax: 100 },
+    window: { xMin: 5, xMax: 35, yMin: 70, yMax: 100 }
+  },
+  kitchen: {
+    table:  { xMin: 0, xMax: 65, yMin: 0, yMax: 70 }
+  }
+};
+
+var ACTION_DURATION = {
+  pray:   3000,
+  read:   4000,
+  lute:   3000,
+  window: 3500,
+  sad:    5000,
+  happy:  2500,
+  angry:  5000,
+  eat:    5000,
+  drink:  4000,
+  sweep:  8000
+};
+
+// ================= ЭЛЕМЕНТЫ =================
+var elAramis = document.getElementById("aramis");
+var elTable = document.getElementById("table");
+var elBroom = document.getElementById("broom");
+var elBubble = document.getElementById("bubble");
+var elRoom = document.getElementById("room");
+var elWalkzone = document.getElementById("walkzone");
+var elBarFood = document.getElementById("bar-food");
+var elBarEnergy = document.getElementById("bar-energy");
+var elBarMood = document.getElementById("bar-mood");
+var elValFood = document.getElementById("val-food");
+var elValEnergy = document.getElementById("val-energy");
+var elValMood = document.getElementById("val-mood");
+var elResetBtn = document.getElementById("reset-btn");
+var elTableActions = document.getElementById("table-actions");
+var elEatBtn = document.getElementById("eat-btn");
+var elDrinkBtn = document.getElementById("drink-btn");
+var elRooms = document.getElementById("rooms");
+var elFade = document.getElementById("fade");
+var roomButtons = document.querySelectorAll(".room-btn");
+
+elBroom.src = broomImg;
+
+// ================= ПЕРЕКЛЮЧЕНИЕ КОМНАТ =================
+function updateRoom() {
+  state.roomChangeId++;
+
+  elRoom.style.backgroundImage = "url('" + roomBackgrounds[state.room] + "')";
+  elTable.src = roomTables[state.room];
+
+  if (state.room === "kitchen") {
+    elTable.classList.add("kitchen");
+    elBroom.classList.add("visible");
+  } else {
+    elTable.classList.remove("kitchen");
+    elBroom.classList.remove("visible");
+  }
+
+  roomButtons.forEach(function(btn) {
+    if (btn.getAttribute("data-room") === state.room) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
+
+  state.isWalking = false;
+  state.isAtTable = false;
+  state.isDragging = false;
+  state.isSweeping = false;
+  state.currentAction = "idle";
+  state.lastAction = "";
+  state.actionUntil = 0;
+  state.idleSince = Date.now();
+  state.walkStreak = 0;
+  state.idleStreak = 0;
+  state.annoyedUntil = 0;
+  state.taps = [];
+
+  if (eatTimeout) clearTimeout(eatTimeout);
+  if (drinkTimeout) clearTimeout(drinkTimeout);
+  if (sweepTimeout) clearTimeout(sweepTimeout);
+
+  elTableActions.classList.remove("visible");
+  elRooms.style.display = "flex";
+  elAramis.classList.remove("dragging");
+
+  // если он спал — просыпаемся при смене комнаты
+  if (state.isSleeping) {
+    state.isSleeping = false;
+    state.sleepUntil = 0;
+  }
+
+  setSprite("idle");
+  state.x = 55;
+  state.y = 45;
+  updateAramisPosition();
+}
+
+roomButtons.forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    var newRoom = this.getAttribute("data-room");
+    if (newRoom === state.room) return;
+
+    elFade.classList.add("on");
+
+    setTimeout(function() {
+      state.room = newRoom;
+      updateRoom();
+
+      setTimeout(function() {
+        elFade.classList.remove("on");
+      }, 100);
+    }, 400);
+  });
+});
+
+elRoom.style.backgroundImage = "url('" + roomBackgrounds["cell"] + "')";
+elTable.src = roomTables["cell"];
+
+// ================= СОХРАНЕНИЕ =================
+var SAVE_KEY = "aramis_save_v2";
+
+function saveGame() {
+  state.lastSaved = Date.now();
+  var save = {
+    food: state.food,
+    energy: state.energy,
+    mood: state.mood,
+    x: state.x,
+    y: state.y,
+    room: state.room,
+    lastSaved: state.lastSaved
+  };
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  } catch (e) {}
+}
+
+function loadGame() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    var save = JSON.parse(raw);
+    state.food = save.food !== undefined ? save.food : 100;
+    state.energy = save.energy !== undefined ? save.energy : 100;
+    state.mood = save.mood !== undefined ? save.mood : 100;
+    state.x = save.x !== undefined ? save.x : 55;
+    state.y = save.y !== undefined ? save.y : 45;
+    state.room = save.room || "cell";
+
+    var now = Date.now();
+    var elapsed = now - (save.lastSaved || now);
+    var hoursAway = elapsed / (1000 * 60 * 60);
+
+    state.food = Math.max(0, state.food - hoursAway * 1);
+    state.energy = Math.max(0, state.energy - hoursAway * 0.5);
+    state.mood = Math.max(0, state.mood - hoursAway * 0.8);
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function resetGame() {
+  localStorage.removeItem(SAVE_KEY);
+  state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+  state.idleSince = Date.now();
+  updateRoom();
+  setSprite("idle");
+  updateAramisPosition();
+  updateStats();
+  showBubble("Начинаем заново!", 2500);
+}
+
+elResetBtn.addEventListener("click", function() {
+  if (confirm("Начать заново? Весь прогресс сбросится.")) {
+    resetGame();
+  }
+});
+
+// ================= ОТРИСОВКА =================
+function setSprite(name) {
+  if (sprites[name]) {
+    var sp = sprites[name];
+    elAramis.src = sp.img;
+    var sc = sp.scale || 1;
+    elAramis.style.transform = "translateX(-50%) scale(" + sc + ")";
+  }
+}
+
+function updateAramisPosition() {
+  var leftPercent = 5 + (state.x / 100) * 80;
+  var bottomPercent = (state.y / 100) * 85;
+  elAramis.style.left = leftPercent + "%";
+  elAramis.style.bottom = bottomPercent + "%";
+  var sc = 1;
+  if (sprites[state.currentAction]) {
+    sc = sprites[state.currentAction].scale || 1;
+  }
+  elAramis.style.transform = "translateX(-50%) scale(" + sc + ")";
+
+  if (state.isAtTable) {
+    elAramis.style.zIndex = "2";
+    return;
+  }
+  if (state.currentAction === "read") {
+    elAramis.style.zIndex = "2";
+    return;
+  }
+  if (state.y > TABLE_Z_THRESHOLD) {
+    elAramis.style.zIndex = "2";
+  } else {
+    elAramis.style.zIndex = "4";
+  }
+}
+
+function updateStats() {
+  elBarFood.style.width = state.food + "%";
+  elBarEnergy.style.width = state.energy + "%";
+  elBarMood.style.width = state.mood + "%";
+  elValFood.textContent = Math.round(state.food);
+  elValEnergy.textContent = Math.round(state.energy);
+  elValMood.textContent = Math.round(state.mood);
+}
+
+function showBubble(text, ms) {
+  elBubble.textContent = text;
+  elBubble.classList.add("show");
+  setTimeout(function() {
+    elBubble.classList.remove("show");
+  }, ms || 2000);
+}
+
+function getBlocker() {
+  return blockers[state.room];
+}
+
+function isInBlocker(x, y) {
+  var b = getBlocker();
+  return x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax;
+}
+
+// ================= СОН =================
+function startSleeping(durationMs) {
+  state.isSleeping = true;
+  state.currentAction = "sleep";
+  state.lastAction = "sleep";
+  state.isWalking = false;
+  setSprite("sleep");
+  showBubble("Арамис спит...", durationMs || 2000);
+  state.sleepUntil = Date.now() + (durationMs || 20000);
+  updateAramisPosition();
+}
+
+function wakeUp() {
+  if (!state.isSleeping) return;
+  state.isSleeping = false;
+  state.sleepUntil = 0;
+  state.energy = Math.min(100, state.energy + 50);
+  updateStats();
+  setSprite("idle");
+  state.currentAction = "idle";
+  state.lastAction = "idle";
+  state.idleSince = Date.now();
+  updateAramisPosition();
+  showBubble("Арамис проснулся!", 2000);
+}
+
+// ================= ЗАНЯТИЯ =================
+function doActivity(action, duration) {
+  state.currentAction = action;
+  state.lastAction = action;
+  state.isWalking = false;
+  state.idleStreak = 0;
+  state.idleSince = 0;
+
+  var dur = duration || ACTION_DURATION[action] || 3000;
+  state.actionUntil = Date.now() + dur;
+
+  if (action === "pray") {
+    setSprite("pray");
+    showBubble("Арамис молится...");
+  } else if (action === "read") {
+    setSprite("read");
+    showBubble("Арамис читает...");
+  } else if (action === "lute") {
+    if (isInBlocker(state.x, state.y)) {
+      var b = getBlocker();
+      var outX = state.x > b.xMax ? state.x : (b.xMax + 8);
+      var outY = b.yMax + 8;
+      walkStep(outX, outY, 800, function() {
+        setSprite("lute");
+        showBubble("Арамис играет на лютне...");
+        state.currentAction = "lute";
+        state.lastAction = "lute";
+        state.actionUntil = Date.now() + ACTION_DURATION.lute;
+        updateAramisPosition();
+      });
+      return;
+    }
+    setSprite("lute");
+    showBubble("Арамис играет на лютне...");
+  } else if (action === "window") {
+    setSprite("window");
+    showBubble("Красивые виды...");
+  } else if (action === "eat") {
+    setSprite("eat");
+    showBubble("Арамис ест...");
+  } else if (action === "drink") {
+    setSprite("drink");
+    showBubble("Арамис пьёт вино...");
+  } else if (action === "sad") {
+    setSprite("sad");
+  } else if (action === "angry") {
+    setSprite("angry");
+  } else if (action === "happy") {
+    setSprite("happy");
+  } else if (action === "sleep") {
+    setSprite("sleep");
+    showBubble("Арамис спит...");
+  } else {
+    setSprite("idle");
+    state.idleSince = Date.now();
+  }
+  updateAramisPosition();
+}
+
+function walkStep(targetX, targetY, durationMs, callback, ignoreBlocker) {
+  state.isWalking = true;
+  var startX = state.x;
+  var startY = state.y;
+  var startTime = Date.now();
+  var myRoomId = state.roomChangeId;
+
+  var finalX = targetX;
+  var finalY = targetY;
+  if (!ignoreBlocker && isInBlocker(targetX, targetY)) {
+    var b = getBlocker();
+    finalY = b.yMax;
+    if (targetX > b.xMax) {
+      finalX = b.xMax;
+    }
+  }
+
+  if (finalX < startX) {
+    setSprite("walkL");
+  } else {
+    setSprite("walkR");
+  }
+
+  function step() {
+    if (state.roomChangeId !== myRoomId) return;
+    if (state.isDragging) return;
+    if (Date.now() < state.annoyedUntil) {
+      state.isWalking = false;
+      return;
+    }
+    var elapsed = Date.now() - startTime;
+    var t = Math.min(elapsed / durationMs, 1);
+    state.x = startX + (finalX - startX) * t;
+    state.y = startY + (finalY - startY) * t;
+    updateAramisPosition();
+
+    if (t < 1) {
+      requestAnimationFrame(step);
+    } else {
+      state.isWalking = false;
+      setSprite("idle");
+      state.currentAction = "idle";
+      state.idleSince = Date.now();
+      if (callback) callback();
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+function randomWalk(callback) {
+  var targetX, targetY;
+  var tries = 0;
+  do {
+    targetX = 10 + Math.random() * 80;
+    targetY = Math.random() * 90;
+    tries++;
+  } while (isInBlocker(targetX, targetY) && tries < 20);
+
+  var dx = targetX - state.x;
+  var dy = targetY - state.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var duration = 800 + dist * 8;
+  walkStep(targetX, targetY, duration, callback);
+}
+
+function goToSpot(spot, actionName) {
+  var dx = spot.x - state.x;
+  var dy = spot.y - state.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var duration = 800 + dist * 10;
+  walkStep(spot.x, spot.y, duration, function() {
+    doActivity(actionName);
+  }, true);
+}
+
+// ================= УБОРКА =================
+var sweepTimeout = null;
+
+function cancelSweeping() {
+  if (!state.isSweeping) return;
+  state.isSweeping = false;
+  if (sweepTimeout) clearTimeout(sweepTimeout);
+  if (state.room === "kitchen") {
+    elBroom.classList.add("visible");
+  }
+  state.mood = Math.max(0, state.mood - 5);
+  updateStats();
+  setSprite("angry");
+  state.currentAction = "angry";
+  state.lastAction = "angry";
+  state.actionUntil = Date.now() + ACTION_DURATION.angry;
+  state.annoyedUntil = Date.now() + 5000;
+  showBubble("Арамис недоволен...");
+  updateAramisPosition();
+}
+
+function startSweeping() {
+  if (state.room !== "kitchen") return;
+  if (state.isAtTable) return;
+  if (state.isSweeping) return;
+  if (state.isDragging) return;
+  if (state.isSleeping) return;
+
+  state.isSweeping = true;
+
+  var broomSpot = { x: 80, y: 72 };
+  var dx = broomSpot.x - state.x;
+  var dy = broomSpot.y - state.y;
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var duration = 800 + dist * 10;
+
+  walkStep(broomSpot.x, broomSpot.y, duration, function() {
+    if (!state.isSweeping) return;
+
+    elBroom.classList.remove("visible");
+    setSprite("sweepR");
+    state.currentAction = "sweepR";
+    state.lastAction = "sweep";
+    showBubble("Арамис подметает...");
+
+    var myRoomId = state.roomChangeId;
+
+    var corners = [
+      { x: 25, y: 55 },
+      { x: 75, y: 55 },
+      { x: 75, y: 88 },
+      { x: 25, y: 88 }
+    ];
+    var cornerIndex = 0;
+    var passesLeft = 8;
+
+    function sweepPass() {
+      if (state.roomChangeId !== myRoomId) return;
+      if (!state.isSweeping) return;
+      if (passesLeft <= 0) {
+        finishSweeping();
+        return;
+      }
+
+      var target = corners[cornerIndex];
+      var targetX = target.x;
+      var targetY = target.y;
+
+      var dxs = targetX - state.x;
+      var dys = targetY - state.y;
+
+      if (Math.abs(dxs) > Math.abs(dys)) {
+        if (dxs > 0) {
+          setSprite("sweepR");
+          state.currentAction = "sweepR";
+        } else {
+          setSprite("sweepL");
+          state.currentAction = "sweepL";
+        }
+      }
+
+      var ddist = Math.sqrt(dxs * dxs + dys * dys);
+      var ddur = 1200 + ddist * 14;
+
+      var startX = state.x;
+      var startY = state.y;
+      var startTime = Date.now();
+
+      function sweepStep() {
+        if (state.roomChangeId !== myRoomId) return;
+        if (!state.isSweeping) return;
+        var elapsed = Date.now() - startTime;
+        var t = Math.min(elapsed / ddur, 1);
+        state.x = startX + (targetX - startX) * t;
+        state.y = startY + (targetY - startY) * t;
+        updateAramisPosition();
+
+        if (t < 1) {
+          requestAnimationFrame(sweepStep);
+        } else {
+          cornerIndex = (cornerIndex + 1) % corners.length;
+          passesLeft--;
+          sweepTimeout = setTimeout(sweepPass, 100);
+        }
+      }
+      requestAnimationFrame(sweepStep);
+    }
+
+    sweepTimeout = setTimeout(sweepPass, 150);
+  }, true);
+}
+
+function finishSweeping() {
+  state.isSweeping = false;
+  state.mood = Math.min(100, state.mood + 2);
+  state.food = Math.max(0, state.food - 1);
+  updateStats();
+  if (state.room === "kitchen") {
+    elBroom.classList.add("visible");
+  }
+  setSprite("idle");
+  state.currentAction = "idle";
+  state.lastAction = "idle";
+  state.idleSince = Date.now();
+  updateAramisPosition();
+  showBubble("Готово!", 1500);
+}
+
+elBroom.addEventListener("click", function(e) {
+  e.stopPropagation();
+  startSweeping();
+});
+
+elBroom.addEventListener("touchstart", function(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  startSweeping();
+}, { passive: false });
+
+// ================= САДИМСЯ ЗА СТОЛ =================
+function sitAtKitchenTable() {
+  if (state.isSweeping) return;
+  if (state.isSleeping) return;
+  state.isAtTable = true;
+  state.isWalking = false;
+  state.currentAction = "read";
+  state.lastAction = "read";
+  state.x = kitchenTableSpot.x;
+  state.y = kitchenTableSpot.y;
+  setSprite("read");
+  updateAramisPosition();
+  elTableActions.classList.add("visible");
+  elRooms.style.display = "none";
+  showBubble("Арамис сел за стол", 2000);
+}
+
+function standFromTable() {
+  state.isAtTable = false;
+  elTableActions.classList.remove("visible");
+  elRooms.style.display = "flex";
+  setSprite("idle");
+  state.currentAction = "idle";
+  state.idleSince = Date.now();
+  state.x = Math.min(90, state.x + 15);
+  state.y = Math.max(0, state.y - 5);
+  updateAramisPosition();
+}
+
+// ================= ЕДА / ПИТЬЁ =================
+var eatTimeout = null;
+var drinkTimeout = null;
+
+elEatBtn.addEventListener("click", function() {
+  if (!state.isAtTable) return;
+  if (eatTimeout) clearTimeout(eatTimeout);
+  var myRoomId = state.roomChangeId;
+
+  doActivity("eat", ACTION_DURATION.eat);
+  state.food = Math.min(100, state.food + 30);
+  state.mood = Math.min(100, state.mood + 3);
+  state.energy = Math.min(100, state.energy + 5);   // +энергия
+  updateStats();
+
+  eatTimeout = setTimeout(function() {
+    if (state.roomChangeId !== myRoomId) return;
+    if (state.isAtTable) {
+      setSprite("read");
+      state.currentAction = "read";
+      state.lastAction = "read";
+    }
+  }, ACTION_DURATION.eat);
+});
+
+elDrinkBtn.addEventListener("click", function() {
+  if (!state.isAtTable) return;
+  if (drinkTimeout) clearTimeout(drinkTimeout);
+  var myRoomId = state.roomChangeId;
+
+  doActivity("drink", ACTION_DURATION.drink);
+  state.food = Math.min(100, state.food + 5);
+  state.mood = Math.min(100, state.mood + 10);
+  state.energy = Math.min(100, state.energy + 3);   // +энергия
+  updateStats();
+
+  drinkTimeout = setTimeout(function() {
+    if (state.roomChangeId !== myRoomId) return;
+    if (state.isAtTable) {
+      setSprite("read");
+      state.currentAction = "read";
+      state.lastAction = "read";
+    }
+  }, ACTION_DURATION.drink);
+});
+
+// ================= ПЕРЕТАСКИВАНИЕ =================
+var dragOffsetX = 0;
+var dragOffsetY = 0;
+var dragStartClientX = 0;
+var dragStartClientY = 0;
+var dragMoved = false;
+var wasAtTable = false;
+
+function getPercentFromPoint(clientX, clientY) {
+  var rect = elWalkzone.getBoundingClientRect();
+  var xPx = clientX - rect.left;
+  var yPx = rect.bottom - clientY;
+  var xPct = (xPx / rect.width) * 100;
+  var yPct = (yPx / rect.height) * 100;
+  xPct = Math.max(10, Math.min(90, xPct));
+  yPct = Math.max(0, Math.min(100, yPct));
+  return { x: xPct, y: yPct };
+}
+
+function startDrag(clientX, clientY) {
+  if (state.isSweeping) {
+    cancelSweeping();
+  }
+  if (state.isSleeping) {
+    wakeUp();
+  }
+
+  wasAtTable = state.isAtTable;
+
+  state.isDragging = true;
+  state.isWalking = false;
+  dragMoved = false;
+  dragStartClientX = clientX;
+  dragStartClientY = clientY;
+  elAramis.classList.add("dragging");
+  var pos = getPercentFromPoint(clientX, clientY);
+  dragOffsetX = state.x - pos.x;
+  dragOffsetY = state.y - pos.y;
+}
+
+function moveDrag(clientX, clientY) {
+  if (!state.isDragging) return;
+  var dx = clientX - dragStartClientX;
+  var dy = clientY - dragStartClientY;
+  if (!dragMoved && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+    dragMoved = true;
+    setSprite("drag");
+    state.currentAction = "drag";
+    if (wasAtTable) {
+      state.isAtTable = false;
+      elTableActions.classList.remove("visible");
+      elRooms.style.display = "flex";
+      wasAtTable = false;
+    }
+  }
+  if (!dragMoved) return;
+  var pos = getPercentFromPoint(clientX, clientY);
+  state.x = Math.max(10, Math.min(90, pos.x + dragOffsetX));
+  state.y = Math.max(0, Math.min(100, pos.y + dragOffsetY));
+  updateAramisPosition();
+}
+
+function endDrag() {
+  if (!state.isDragging) return;
+  state.isDragging = false;
+  elAramis.classList.remove("dragging");
+
+  if (!dragMoved) {
+    registerTap();
+    return;
+  }
+
+  var z = zones[state.room] || {};
+
+  if (state.room === "kitchen") {
+    if (z.table && state.x >= z.table.xMin && state.x <= z.table.xMax &&
+        state.y >= z.table.yMin && state.y <= z.table.yMax) {
+      sitAtKitchenTable();
+      return;
+    }
+    setSprite("idle");
+    state.currentAction = "idle";
+    state.idleSince = Date.now();
+    return;
+  }
+
+  if (z.cross && state.x >= z.cross.xMin && state.x <= z.cross.xMax &&
+      state.y >= z.cross.yMin && state.y <= z.cross.yMax) {
+    doActivity("pray");
+    state.x = cellSpots.pray.x;
+    state.y = cellSpots.pray.y;
+    updateAramisPosition();
+    return;
+  }
+  if (z.table && state.x >= z.table.xMin && state.x <= z.table.xMax &&
+      state.y >= z.table.yMin && state.y <= z.table.yMax) {
+    doActivity("read");
+    state.x = cellSpots.read.x;
+    state.y = cellSpots.read.y;
+    updateAramisPosition();
+    return;
+  }
+  if (z.window && state.x >= z.window.xMin && state.x <= z.window.xMax &&
+      state.y >= z.window.yMin && state.y <= z.window.yMax) {
+    doActivity("window");
+    state.x = cellSpots.window.x;
+    state.y = cellSpots.window.y;
+    updateAramisPosition();
+    return;
+  }
+
+  setSprite("idle");
+  state.currentAction = "idle";
+  state.idleSince = Date.now();
+}
+
+elAramis.addEventListener("touchstart", function(e) {
+  e.preventDefault();
+  startDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+elAramis.addEventListener("touchmove", function(e) {
+  e.preventDefault();
+  moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+
+elAramis.addEventListener("touchend", function(e) {
+  e.preventDefault();
+  endDrag();
+}, { passive: false });
+
+elAramis.addEventListener("mousedown", function(e) {
+  e.preventDefault();
+  startDrag(e.clientX, e.clientY);
+});
+document.addEventListener("mousemove", function(e) {
+  if (state.isDragging) moveDrag(e.clientX, e.clientY);
+});
+document.addEventListener("mouseup", function(e) {
+  if (state.isDragging) endDrag();
+});
+
+// ================= ТАПЫ =================
+function registerTap() {
+  if (state.isSweeping) {
+    cancelSweeping();
+    return;
+  }
+  if (state.isSleeping) {
+    wakeUp();
+    return;
+  }
+
+  var now = Date.now();
+  state.taps = state.taps.filter(function(t) { return now - t < 4000; });
+  state.taps.push(now);
+  var count = state.taps.length;
+
+  if (count <= 2) {
+    state.mood = Math.min(100, state.mood + 3);
+    updateStats();
+    setSprite("happy");
+    state.currentAction = "happy";
+    state.actionUntil = now + ACTION_DURATION.happy;
+    showBubble("Арамис улыбается...");
+    state.annoyedUntil = 0;
+    if (state.isAtTable) {
+      setTimeout(function() {
+        if (state.isAtTable) {
+          setSprite("read");
+          state.currentAction = "read";
+        }
+      }, 2500);
+    }
+  } else if (count <= 4) {
+    showBubble("Арамис хмурится...");
+  } else {
+    var now2 = Date.now();
+    if (now2 - state.lastAnnoyedAt > 30000) {
+      state.mood = Math.max(0, state.mood - 10);
+      updateStats();
+      state.lastAnnoyedAt = now2;
+      showBubble("Хватит тыкать!");
+    } else {
+      showBubble("Арамис уже недоволен...");
+    }
+    state.isWalking = false;
+    setSprite("angry");
+    state.currentAction = "angry";
+    state.actionUntil = now2 + ACTION_DURATION.angry;
+    state.annoyedUntil = now2 + 5000;
+    if (state.isAtTable) {
+      setTimeout(function() {
+        if (state.isAtTable) {
+          setSprite("read");
+          state.currentAction = "read";
+        }
+      }, 5000);
+    }
+  }
+}
+
+// ================= ЛОГИКА =================
+function isBusy() {
+  return Date.now() < state.actionUntil;
+}
+
+function pickActivity() {
+  if (Date.now() < state.annoyedUntil) return;
+  if (state.isAtTable) return;
+  if (state.isSweeping) return;
+  if (state.isSleeping) return;
+
+  // АВТОСОН: если энергия < 25 — идём спать
+  if (state.energy < 25) {
+    // идём к точке сна
+    var dx = sleepSpot.x - state.x;
+    var dy = sleepSpot.y - state.y;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var duration = 800 + dist * 10;
+    walkStep(sleepSpot.x, sleepSpot.y, duration, function() {
+      startSleeping(20000);
+    }, true);
+    return;
+  }
+
+  if (state.room === "kitchen") {
+    var kOptions = ["walk", "window"];
+    if (state.lastAction === "walk") kOptions = ["window", "walk"];
+
+    var kPick = kOptions[Math.floor(Math.random() * kOptions.length)];
+
+    if (kPick === "walk") {
+      state.walkStreak++;
+      state.idleStreak = 0;
+      randomWalk();
+    } else if (kPick === "window") {
+      state.walkStreak = 0;
+      state.idleStreak = 0;
+      goToSpot(kitchenSpots.window, "window");
+    }
+    return;
+  }
+
+  var options = ["pray", "read", "lute", "walk", "window"];
+  if (Date.now() - state.idleSince < 5000) {
+    options.push("idle");
+  }
+
+  if (state.lastAction && state.lastAction !== "walk" && state.lastAction !== "idle") {
+    options = options.filter(function(a) { return a !== state.lastAction; });
+  }
+  if (state.walkStreak >= 2) {
+    options = options.filter(function(a) { return a !== "walk"; });
+  }
+  if (state.idleStreak >= 1) {
+    options = options.filter(function(a) { return a !== "idle"; });
+  }
+
+  var pick = options[Math.floor(Math.random() * options.length)];
+
+  if (pick === "walk") {
+    state.walkStreak++;
+    state.idleStreak = 0;
+    randomWalk();
+  } else if (pick === "idle") {
+    state.idleStreak++;
+    state.walkStreak = 0;
+    doActivity("idle");
+  } else if (pick === "read") {
+    state.walkStreak = 0;
+    state.idleStreak = 0;
+    goToSpot(cellSpots.read, "read");
+  } else if (pick === "pray") {
+    state.walkStreak = 0;
+    state.idleStreak = 0;
+    goToSpot(cellSpots.pray, "pray");
+  } else if (pick === "window") {
+    state.walkStreak = 0;
+    state.idleStreak = 0;
+    goToSpot(cellSpots.window, "window");
+  } else {
+    state.walkStreak = 0;
+    state.idleStreak = 0;
+    doActivity("lute");
+  }
+}
+
+function tickActivity() {
+  if (state.isDragging) return;
+  if (state.isWalking) return;
+  if (state.isAtTable) return;
+  if (state.isSweeping) return;
+  if (state.isSleeping) return;
+  if (Date.now() < state.annoyedUntil) return;
+  if (isBusy()) return;
+
+  if (state.energy < 20) {
+    doActivity("sad", 4000);
+    showBubble("Арамис устал...");
+    return;
+  }
+
+  if (state.food < 20) {
+    doActivity("sad", 4000);
+    showBubble("Арамис голоден...");
+    return;
+  }
+
+  if (state.mood < 20) {
+    doActivity("sad");
+    return;
+  }
+
+  if (state.mood < 40) {
+    if (state.walkStreak < 3) {
+      state.walkStreak++;
+      randomWalk();
+    } else {
+      state.walkStreak = 0;
+      doActivity("sad");
+    }
+    return;
+  }
+
+  pickActivity();
+}
+
+function checkIdleTimeout() {
+  if (state.isDragging) return;
+  if (state.isWalking) return;
+  if (state.isAtTable) return;
+  if (state.isSweeping) return;
+  if (state.isSleeping) return;
+  if (isBusy()) return;
+  if (Date.now() < state.annoyedUntil) return;
+  if (state.currentAction === "idle" && state.idleSince > 0) {
+    if (Date.now() - state.idleSince > 5000) {
+      tickActivity();
+    }
+  }
+}
+
+function tickStats() {
+  // проверка пробуждения
+  if (state.isSleeping) {
+    state.food = Math.max(0, state.food - 0.2);
+    if (Date.now() >= state.sleepUntil) {
+      wakeUp();
+    }
+    updateStats();
+    return;
+  }
+
+  state.food = Math.max(0, state.food - 0.5);
+  state.energy = Math.max(0, state.energy - 0.15);   // замедлили падение
+  var moodDrop = 0.3;
+  if (state.food < 30) moodDrop += 0.3;
+  if (state.energy < 30) moodDrop += 0.3;
+  state.mood = Math.max(0, state.mood - moodDrop);
+  updateStats();
+}
+
+// ================= СТАРТ =================
+var loaded = loadGame();
+updateRoom();
+setSprite("idle");
+state.idleSince = Date.now();
+updateAramisPosition();
+updateStats();
+
+if (loaded) {
+  showBubble("С возвращением!", 2500);
+}
+
+setInterval(tickActivity, 4000);
+setInterval(checkIdleTimeout, 2000);
+setInterval(saveGame, 5000);
+
+setInterval(function() {
+  if (state.isDragging) return;
+  if (state.isAtTable) return;
+  if (state.isSweeping) return;
+  if (state.isSleeping) return;
+  if (Date.now() < state.annoyedUntil) return;
+  if (!state.isWalking && state.currentAction === "idle" && state.mood >= 20 && state.energy >= 20 && state.food >= 20) {
+    if (state.walkStreak < 2) {
+      state.walkStreak++;
+      randomWalk();
+    }
+  }
+}, 12000);
+
+setInterval(tickStats, 3000);
+
+setTimeout(tickActivity, 1500);
+
+window.addEventListener("beforeunload", saveGame);
+document.addEventListener("visibilitychange", function() {
+  if (document.hidden) saveGame();
+});
+</script>
+</body>
+  </html>
